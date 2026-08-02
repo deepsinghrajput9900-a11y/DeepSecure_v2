@@ -174,227 +174,211 @@
 </div>
 
 <script>
-if (typeof lucide !== 'undefined') lucide.createIcons();
+if (typeof lucide !== "undefined") { lucide.createIcons(); }
 
 /* ---------- Tab switching ---------- */
-const tabs = document.querySelectorAll('.tab-btn');
+var tabs = document.querySelectorAll(".tab-btn");
 function setActiveTab(name){
-  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  tabs.forEach(b => b.classList.toggle('bg-white/15', b.dataset.tab === name));
+  var contents = document.querySelectorAll(".tab-content");
+  for (var i = 0; i < contents.length; i++) { contents[i].classList.remove("active"); }
+  document.getElementById("tab-" + name).classList.add("active");
+  for (var j = 0; j < tabs.length; j++) {
+    if (tabs[j].getAttribute("data-tab") === name) { tabs[j].classList.add("bg-white/15"); }
+    else { tabs[j].classList.remove("bg-white/15"); }
+  }
 }
-tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
+for (var t = 0; t < tabs.length; t++) {
+  tabs[t].addEventListener("click", function(e){ setActiveTab(e.currentTarget.getAttribute("data-tab")); });
+}
 
 /* ---------- Config diagnostics ---------- */
-async function loadConfigBanner(){
-  const banner = document.getElementById('configBanner');
-  try {
-    const res = await fetch('/api/config');
-    const cfg = await res.json();
-    if(!cfg.senderKeyConfigured){
+function loadConfigBanner(){
+  var banner = document.getElementById("configBanner");
+  fetch("/api/config").then(function(res){ return res.json(); }).then(function(cfg){
+    if (!cfg.senderKeyConfigured) {
       banner.textContent = "Server setup incomplete: SENDER_API_KEY is not set in your host's environment variables. Set it, then reload.";
-      banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
-      banner.classList.remove('hidden');
+      banner.style.background = "#F6E3E0"; banner.style.color = "#B04A3F";
+      banner.classList.remove("hidden");
     } else {
-      banner.classList.add('hidden');
+      banner.classList.add("hidden");
     }
-  } catch(e){
-    banner.textContent = 'Could not reach the server to check configuration.';
-    banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
-    banner.classList.remove('hidden');
-  }
+  }).catch(function(){
+    banner.textContent = "Could not reach the server to check configuration.";
+    banner.style.background = "#F6E3E0"; banner.style.color = "#B04A3F";
+    banner.classList.remove("hidden");
+  });
 }
 loadConfigBanner();
 
-/* ---------- Sender key: persisted in this browser so it survives reloads ---------- */
-let senderKey = localStorage.getItem('deepsecure_sender_key') || '';
-document.getElementById('senderKeyInput').value = senderKey;
-if(senderKey){ refreshLinks(); refreshAudit(); }
+/* ---------- Sender key ---------- */
+var senderKey = localStorage.getItem("deepsecure_sender_key") || "";
+document.getElementById("senderKeyInput").value = senderKey;
+if (senderKey) { refreshLinks(); refreshAudit(); }
 
-document.getElementById('saveKeyBtn').addEventListener('click', () => {
-  senderKey = document.getElementById('senderKeyInput').value.trim();
-  localStorage.setItem('deepsecure_sender_key', senderKey);
+document.getElementById("saveKeyBtn").addEventListener("click", function(){
+  senderKey = document.getElementById("senderKeyInput").value.trim();
+  localStorage.setItem("deepsecure_sender_key", senderKey);
   refreshLinks();
   refreshAudit();
 });
-function authHeaders(){ return { 'x-sender-key': senderKey }; }
+function authHeaders(){ return { "x-sender-key": senderKey }; }
 
 /* ---------- Upload / create link ---------- */
-const fileInput = document.getElementById('fileInput');
-document.getElementById('dropZone').addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => {
-  document.getElementById('fileLabel').textContent = fileInput.files[0]?.name || 'Tap to choose a file';
+var fileInput = document.getElementById("fileInput");
+document.getElementById("dropZone").addEventListener("click", function(){ fileInput.click(); });
+fileInput.addEventListener("change", function(){
+  var f = fileInput.files[0];
+  document.getElementById("fileLabel").textContent = f ? f.name : "Tap to choose a file";
 });
 
-document.getElementById('createLinkBtn').addEventListener('click', async () => {
-  const status = document.getElementById('uploadStatus');
-  if(!senderKey){ status.textContent = 'Paste your sender key above first.'; return; }
-  if(!fileInput.files[0]){ status.textContent = 'Choose a file first.'; return; }
+document.getElementById("createLinkBtn").addEventListener("click", function(){
+  var status = document.getElementById("uploadStatus");
+  if (!senderKey) { status.textContent = "Paste your sender key above first."; return; }
+  if (!fileInput.files[0]) { status.textContent = "Choose a file first."; return; }
 
-  const form = new FormData();
-  form.append('file', fileInput.files[0]);
-  form.append('expiryMinutes', document.getElementById('expirySelect').value);
-  form.append('maxViews', document.getElementById('viewsSelect').value);
-  form.append('requiresApproval', document.getElementById('requireApproval').checked);
+  var form = new FormData();
+  form.append("file", fileInput.files[0]);
+  form.append("expiryMinutes", document.getElementById("expirySelect").value);
+  form.append("maxViews", document.getElementById("viewsSelect").value);
+  form.append("requiresApproval", document.getElementById("requireApproval").checked);
 
-  status.textContent = 'Uploading...';
-  try {
-    const res = await fetch('/api/links', { method: 'POST', headers: authHeaders(), body: form });
-    if(!res.ok){ const e = await res.json(); throw new Error(e.error || 'Upload failed'); }
-    const data = await res.json();
-    status.textContent = '';
-    document.getElementById('linkModalMeta').textContent =
-      `Expires ${new Date(data.expiresAt).toLocaleString()} · ${data.maxViews || 'unlimited'} views`;
-    document.getElementById('linkModalUrl').value = data.url;
-    const modal = document.getElementById('linkModal');
-    modal.classList.remove('hidden'); modal.classList.add('flex');
-    refreshLinks();
-  } catch(err){
-    status.textContent = err.message;
-  }
+  status.textContent = "Uploading...";
+  fetch("/api/links", { method: "POST", headers: authHeaders(), body: form })
+    .then(function(res){
+      if (!res.ok) { return res.json().then(function(e){ throw new Error(e.error || "Upload failed"); }); }
+      return res.json();
+    })
+    .then(function(data){
+      status.textContent = "";
+      document.getElementById("linkModalMeta").textContent =
+        "Expires " + new Date(data.expiresAt).toLocaleString() + " \u00b7 " + (data.maxViews || "unlimited") + " views";
+      document.getElementById("linkModalUrl").value = data.url;
+      var modal = document.getElementById("linkModal");
+      modal.classList.remove("hidden"); modal.classList.add("flex");
+      refreshLinks();
+    })
+    .catch(function(err){ status.textContent = err.message; });
 });
 
-document.getElementById('copyLinkBtn').addEventListener('click', async () => {
-  const input = document.getElementById('linkModalUrl');
+document.getElementById("copyLinkBtn").addEventListener("click", function(){
+  var input = document.getElementById("linkModalUrl");
   input.select();
-  try { await navigator.clipboard.writeText(input.value); } catch(e){ document.execCommand('copy'); }
+  try { navigator.clipboard.writeText(input.value); } catch(e){ document.execCommand("copy"); }
 });
-document.getElementById('closeLinkModal').addEventListener('click', () => {
-  const modal = document.getElementById('linkModal');
-  modal.classList.add('hidden'); modal.classList.remove('flex');
+document.getElementById("closeLinkModal").addEventListener("click", function(){
+  var modal = document.getElementById("linkModal");
+  modal.classList.add("hidden"); modal.classList.remove("flex");
 });
 
 /* ---------- Links list ---------- */
-async function refreshLinks(){
-  if(!senderKey) return;
-  const grid = document.getElementById('linksGrid');
-  try {
-    const res = await fetch('/api/links', { headers: authHeaders() });
-    if(!res.ok) throw new Error();
-    const rows = await res.json();
-    grid.innerHTML = rows.map(l => `
-      <div class="card rounded-3xl p-4 flex items-center justify-between">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:var(--canvas);">
-            <i data-lucide="file-lock-2" class="w-4 h-4" style="color:var(--ink-soft)"></i>
-          </div>
-          <div class="min-w-0">
-            <p class="text-[13px] font-medium truncate">${l.original_name}</p>
-            <p class="text-[11px] text-[var(--ink-soft)]">${new Date(l.created_at).toLocaleString()} · ${l.view_count}/${l.max_views || '∞'} views</p>
-          </div>
-        </div>
-        <span class="text-[11px] px-3 py-1 rounded-full font-medium whitespace-nowrap capitalize"
-          style="${statusStyle(l.status)}">${l.status}</span>
-      </div>
-    `).join('') || `<p class="text-[13px] text-[var(--ink-soft)]">No links yet.</p>`;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  } catch(e){
-    grid.innerHTML = `<p class="text-[13px] text-[var(--red)]">Couldn't load links — check your sender key.</p>`;
-  }
-}
 function statusStyle(s){
-  return { active: 'background:var(--accent-soft); color:var(--accent);',
-    expired: 'background:#EFE9E2; color:var(--ink-soft);',
-    pending: 'background:#F3E7D6; color:var(--amber);',
-    revoked: 'background:#F6E3E0; color:var(--red);' }[s] || '';
+  var map = {
+    active: "background:#E4EEE7; color:#2F6B4F;",
+    expired: "background:#EFE9E2; color:#5B655E;",
+    pending: "background:#F3E7D6; color:#B9803B;",
+    revoked: "background:#F6E3E0; color:#B04A3F;"
+  };
+  return map[s] || "";
 }
-document.getElementById('refreshLinksBtn').addEventListener('click', refreshLinks);
+
+function refreshLinks(){
+  if (!senderKey) return;
+  var grid = document.getElementById("linksGrid");
+  fetch("/api/links", { headers: authHeaders() })
+    .then(function(res){ if (!res.ok) { throw new Error(); } return res.json(); })
+    .then(function(rows){
+      if (!rows.length) { grid.innerHTML = '<p class="text-[13px] text-[#5B655E]">No links yet.</p>'; return; }
+      var html = "";
+      for (var i = 0; i < rows.length; i++) {
+        var l = rows[i];
+        html += '<div class="card rounded-3xl p-4 flex items-center justify-between">' +
+          '<div class="flex items-center gap-3 min-w-0">' +
+          '<div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:#F4F2ED;">' +
+          '<i data-lucide="file-lock-2" class="w-4 h-4" style="color:#5B655E"></i></div>' +
+          '<div class="min-w-0"><p class="text-[13px] font-medium truncate">' + l.original_name + '</p>' +
+          '<p class="text-[11px] text-[#5B655E]">' + new Date(l.created_at).toLocaleString() + ' \u00b7 ' + l.view_count + '/' + (l.max_views || "\u221e") + ' views</p></div></div>' +
+          '<span class="text-[11px] px-3 py-1 rounded-full font-medium whitespace-nowrap capitalize" style="' + statusStyle(l.status) + '">' + l.status + '</span></div>';
+      }
+      grid.innerHTML = html;
+      if (typeof lucide !== "undefined") { lucide.createIcons(); }
+    })
+    .catch(function(){
+      grid.innerHTML = '<p class="text-[13px] text-[#B04A3F]">Could not load links, check your sender key.</p>';
+    });
+}
+document.getElementById("refreshLinksBtn").addEventListener("click", refreshLinks);
 
 /* ---------- Audit log ---------- */
-async function refreshAudit(){
-  if(!senderKey) return;
-  const log = document.getElementById('auditLog');
-  try {
-    const res = await fetch('/api/audit', { headers: authHeaders() });
-    const rows = await res.json();
-    log.innerHTML = rows.slice(0,20).map(a => `
-      <div class="flex items-center justify-between px-3 py-2.5">
-        <div>
-          <p class="text-[12.5px]"><span class="font-medium">${a.actor}</span> · ${a.action}</p>
-          <p class="text-[11px] text-[var(--ink-soft)] font-mono">${a.token.slice(0,10)}…</p>
-        </div>
-        <span class="text-[11px] text-[var(--ink-soft)] whitespace-nowrap">${new Date(a.created_at).toLocaleTimeString()}</span>
-      </div>
-    `).join('');
-  } catch(e){}
+function refreshAudit(){
+  if (!senderKey) return;
+  var log = document.getElementById("auditLog");
+  fetch("/api/audit", { headers: authHeaders() })
+    .then(function(res){ return res.json(); })
+    .then(function(rows){
+      var slice = rows.slice(0, 20);
+      var html = "";
+      for (var i = 0; i < slice.length; i++) {
+        var a = slice[i];
+        html += '<div class="flex items-center justify-between px-3 py-2.5">' +
+          '<div><p class="text-[12.5px]"><span class="font-medium">' + a.actor + '</span> \u00b7 ' + a.action + '</p>' +
+          '<p class="text-[11px] text-[#5B655E] font-mono">' + a.token.slice(0, 10) + '\u2026</p></div>' +
+          '<span class="text-[11px] text-[#5B655E] whitespace-nowrap">' + new Date(a.created_at).toLocaleTimeString() + '</span></div>';
+      }
+      log.innerHTML = html;
+    })
+    .catch(function(){});
 }
 
 /* ---------- Viewer ---------- */
 function currentToken(){
-  const match = location.pathname.match(/^\/view\/([^/]+)/);
-  return match ? match[1] : null;
+  var m = location.pathname.match(/^\/view\/([^\/]+)/);
+  return m ? m[1] : null;
 }
 
-async function loadViewerMeta(){
-  const token = currentToken();
-  const banner = document.getElementById('viewerBanner');
-  const card = document.getElementById('viewerCard');
-  if(!token){ banner.textContent = 'No link token in this URL.'; banner.classList.remove('hidden'); return; }
-  setActiveTab('viewer');
-  try {
-    const res = await fetch(`/api/view/${token}/meta`);
-    if(!res.ok){
-      const e = await res.json();
-      banner.textContent = e.error || 'This link is not valid.';
-      banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
-      banner.classList.remove('hidden');
-      return;
-    }
-    const meta = await res.json();
-    card.classList.remove('hidden');
-    document.getElementById('viewerFileName').textContent = meta.name;
-    document.getElementById('viewerMeta').textContent =
-      `${meta.viewCount}/${meta.maxViews || '∞'} views used · expires ${new Date(meta.expiresAt).toLocaleString()}`;
-    const badge = document.getElementById('viewerStateBadge');
-    badge.textContent = meta.status;
-    badge.setAttribute('style', statusStyle(meta.status));
+function loadViewerMeta(){
+  var token = currentToken();
+  var banner = document.getElementById("viewerBanner");
+  var card = document.getElementById("viewerCard");
+  if (!token) { banner.textContent = "No link token in this URL."; banner.classList.remove("hidden"); return; }
+  setActiveTab("viewer");
+  fetch("/api/view/" + token + "/meta")
+    .then(function(res){
+      if (!res.ok) { return res.json().then(function(e){ throw new Error(e.error || "This link is not valid."); }); }
+      return res.json();
+    })
+    .then(function(meta){
+      card.classList.remove("hidden");
+      document.getElementById("viewerFileName").textContent = meta.name;
+      document.getElementById("viewerMeta").textContent =
+        meta.viewCount + "/" + (meta.maxViews || "\u221e") + " views used \u00b7 expires " + new Date(meta.expiresAt).toLocaleString();
+      var badge = document.getElementById("viewerStateBadge");
+      badge.textContent = meta.status;
+      badge.setAttribute("style", statusStyle(meta.status));
 
-    const revealBtn = document.getElementById('revealBtn');
-    if(meta.status !== 'active'){
-      revealBtn.disabled = true; revealBtn.textContent = `Link ${meta.status}`; revealBtn.classList.add('opacity-50');
-    }
-    if(meta.requiresApproval && meta.status === 'pending'){
-      revealBtn.disabled = true; revealBtn.textContent = 'Waiting for sender approval'; revealBtn.classList.add('opacity-50');
-    }
-  } catch(e){
-    banner.textContent = 'Could not reach the server.';
-    banner.classList.remove('hidden');
-  }
+      var revealBtn = document.getElementById("revealBtn");
+      if (meta.status !== "active") {
+        revealBtn.disabled = true; revealBtn.textContent = "Link " + meta.status; revealBtn.classList.add("opacity-50");
+      }
+      if (meta.requiresApproval && meta.status === "pending") {
+        revealBtn.disabled = true; revealBtn.textContent = "Waiting for sender approval"; revealBtn.classList.add("opacity-50");
+      }
+    })
+    .catch(function(e){
+      banner.textContent = e.message || "Could not reach the server.";
+      banner.style.background = "#F6E3E0"; banner.style.color = "#B04A3F";
+      banner.classList.remove("hidden");
+    });
 }
 
-document.getElementById('revealBtn').addEventListener('click', async () => {
-  const token = currentToken();
-  if(!token) return;
-  const meta = await (await fetch(`/api/view/${token}/meta`)).json();
+document.getElementById("revealBtn").addEventListener("click", function(){
+  var token = currentToken();
+  if (!token) return;
+  fetch("/api/view/" + token + "/meta").then(function(res){ return res.json(); }).then(function(meta){
+    var frame = document.getElementById("viewerFrame");
+    var img = document.getElementById("viewerImg");
+    var iframe = document.getElementById("viewerFile");
+    frame.classList.remove("hidden");
 
-  const frame = document.getElementById('viewerFrame');
-  const img = document.getElementById('viewerImg');
-  const iframe = document.getElementById('viewerFile');
-  frame.classList.remove('hidden');
-
-  const fileUrl = `/api/view/${token}/file`;
-  if(meta.mimeType && meta.mimeType.startsWith('image/')){
-    img.src = fileUrl; img.classList.remove('hidden'); iframe.classList.add('hidden');
-  } else {
-    iframe.src = fileUrl; iframe.classList.remove('hidden'); img.classList.add('hidden');
-  }
-  paintWatermark();
-  loadViewerMeta();
-});
-
-function paintWatermark(){
-  const layer = document.getElementById('watermarkLayer');
-  const stamp = new Date().toLocaleString();
-  layer.innerHTML = '';
-  for(let i=0;i<6;i++){
-    const div = document.createElement('div');
-    div.className = 'flex items-center justify-center text-[10px] font-mono watermark-tile';
-    div.style.transform = 'rotate(-18deg)';
-    div.textContent = stamp;
-    layer.appendChild(div);
-  }
-}
-
-if(currentToken()){ loadViewerMeta(); } else { setActiveTab('dashboard'); }
-
-/* -------
+    var fileUrl = "/api/view/" + token + "/file";
+    if (meta.mimeType && meta.mimeType.indexOf("image/") === 0) {
+      img.src = fileUrl; img.classList.remove("hidden"
