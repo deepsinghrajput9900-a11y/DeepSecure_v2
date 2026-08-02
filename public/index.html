@@ -174,7 +174,7 @@
 </div>
 
 <script>
-lucide.createIcons();
+if (typeof lucide !== 'undefined') lucide.createIcons();
 
 /* ---------- Tab switching ---------- */
 const tabs = document.querySelectorAll('.tab-btn');
@@ -287,7 +287,7 @@ async function refreshLinks(){
           style="${statusStyle(l.status)}">${l.status}</span>
       </div>
     `).join('') || `<p class="text-[13px] text-[var(--ink-soft)]">No links yet.</p>`;
-    lucide.createIcons();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   } catch(e){
     grid.innerHTML = `<p class="text-[13px] text-[var(--red)]">Couldn't load links — check your sender key.</p>`;
   }
