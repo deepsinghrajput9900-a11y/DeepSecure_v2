@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>DeepSecure — Confidential Share</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#20281F" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root{
+    --canvas:#F4F2ED; --card:#FFFFFF; --ink:#1F2A24; --ink-soft:#5B655E;
+    --accent:#2F6B4F; --accent-soft:#E4EEE7; --line:#E7E3D9; --amber:#B9803B; --red:#B04A3F; --pill:#20281F;
+  }
+  html, body { background: var(--canvas); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif; }
+  .card { background: var(--card); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(31,42,36,0.04), 0 8px 24px -12px rgba(31,42,36,0.10); }
+  .pill-dark { background: var(--pill); color: #F4F2ED; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+  @keyframes floatUp { 0%{ transform:translateY(6px); opacity:0 } 100%{ transform:translateY(0); opacity:1 } }
+  .rise { animation: floatUp .3s ease forwards; }
+  .watermark-tile { color: rgba(31,42,36,0.16); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="max-w-md mx-auto min-h-screen relative pb-28">
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="tab-dashboard" class="tab-content active px-5 pt-6">
+
+    <div id="configBanner" class="hidden text-[12px] rounded-2xl px-4 py-3 mb-4"></div>
+
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <p class="text-[11px] tracking-widest uppercase text-[var(--ink-soft)]">Sender key</p>
+        <input id="senderKeyInput" type="password" placeholder="Paste your SENDER_API_KEY"
+          class="text-[13px] font-mono border rounded-xl px-2 py-1 mt-1 w-48" style="border-color:var(--line);" />
+      </div>
+      <button id="saveKeyBtn" class="text-[12px] px-3 py-2 rounded-full pill-dark">Save</button>
+    </div>
+
+    <div class="rounded-3xl p-5 mb-4 card" style="background:linear-gradient(135deg,#DCE6DF, #EFEBDD);">
+      <p class="text-[11px] tracking-widest uppercase text-[var(--ink-soft)] mb-1">DeepSecure Core</p>
+      <h1 class="text-2xl font-semibold leading-tight mb-1">Share confidential files,<br/>with server-enforced expiry.</h1>
+      <p class="text-[12px] text-[var(--ink-soft)]">Expiry, view limits, and access logs are enforced by the backend — not the browser.</p>
+    </div>
+
+    <div class="card rounded-3xl p-5 mb-4">
+      <div class="border-2 border-dashed rounded-2xl flex flex-col items-center justify-center py-8 mb-4 cursor-pointer" style="border-color:var(--line);" id="dropZone">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mb-2" style="background:var(--accent-soft)">
+          <i data-lucide="upload-cloud" class="w-6 h-6" style="color:var(--accent)"></i>
+        </div>
+        <p class="text-[14px] font-medium" id="fileLabel">Tap to choose a file</p>
+        <p class="text-[12px] text-[var(--ink-soft)] mt-0.5">Images, video, or documents · up to 50MB</p>
+        <input type="file" id="fileInput" class="hidden" />
+      </div>
+
+      <label class="text-[12px] font-medium text-[var(--ink-soft)] block mb-1.5">Access expires after</label>
+      <select id="expirySelect" class="w-full rounded-2xl px-4 py-3 text-[14px] border outline-none mb-3" style="border-color:var(--line);">
+        <option value="1">1 minute</option>
+        <option value="5" selected>5 minutes</option>
+        <option value="60">1 hour</option>
+        <option value="1440">24 hours</option>
+      </select>
+
+      <label class="text-[12px] font-medium text-[var(--ink-soft)] block mb-1.5">Maximum views</label>
+      <select id="viewsSelect" class="w-full rounded-2xl px-4 py-3 text-[14px] border outline-none mb-3" style="border-color:var(--line);">
+        <option value="1">1 view</option>
+        <option value="3" selected>3 views</option>
+        <option value="10">10 views</option>
+        <option value="0">Unlimited (within expiry)</option>
+      </select>
+
+      <label class="flex items-center gap-2 text-[13px] mb-4">
+        <input type="checkbox" id="requireApproval" class="w-4 h-4" />
+        Require my approval before each view
+      </label>
+
+      <button id="createLinkBtn" class="w-full pill-dark rounded-2xl py-3.5 text-[14px] font-medium flex items-center justify-center gap-2">
+        <i data-lucide="link-2" class="w-4 h-4"></i> Create secure link
+      </button>
+      <p id="uploadStatus" class="text-[12px] text-[var(--ink-soft)] mt-2"></p>
+    </div>
+
+    <div id="linkModal" class="hidden fixed inset-0 z-50 items-center justify-center px-6" style="background:rgba(31,42,36,0.45);">
+      <div class="card rounded-3xl p-5 w-full max-w-sm rise">
+        <div class="flex items-center gap-2 mb-1">
+          <i data-lucide="check-circle-2" class="w-5 h-5" style="color:var(--accent)"></i>
+          <h3 class="text-[15px] font-semibold">Secure link created</h3>
+        </div>
+        <p class="text-[12.5px] text-[var(--ink-soft)] mb-3" id="linkModalMeta"></p>
+        <div class="flex items-center gap-2 rounded-2xl px-3 py-2.5 mb-3" style="background:var(--canvas); border:1px solid var(--line);">
+          <input id="linkModalUrl" readonly class="flex-1 bg-transparent text-[12px] font-mono outline-none truncate" />
+          <button id="copyLinkBtn" class="text-[12px] font-medium px-3 py-1.5 rounded-full pill-dark whitespace-nowrap">Copy</button>
+        </div>
+        <button id="closeLinkModal" class="w-full text-[13px] font-medium rounded-2xl py-2.5 border" style="border-color:var(--line);">Done</button>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-[15px] font-semibold">Your shared links</h2>
+      <button id="refreshLinksBtn" class="text-[13px] text-[var(--ink-soft)]">Refresh</button>
+    </div>
+    <div id="linksGrid" class="space-y-3 mb-6"></div>
+
+    <h2 class="text-[15px] font-semibold mb-3">Access log</h2>
+    <div id="auditLog" class="card rounded-3xl p-2 mb-6 divide-y" style="border-color:var(--line);"></div>
+  </section>
+
+  <!-- ============ VIEWER ============ -->
+  <section id="tab-viewer" class="tab-content px-5 pt-6">
+    <h1 class="text-xl font-semibold mb-1">Secure viewer</h1>
+    <p class="text-[13px] text-[var(--ink-soft)] mb-3">Expiry and view limits are enforced by the server.</p>
+    <div id="viewerBanner" class="hidden text-[12px] rounded-2xl px-4 py-3 mb-4"></div>
+
+    <div id="viewerCard" class="hidden">
+      <div class="card rounded-3xl p-4 mb-4 flex items-center justify-between">
+        <div>
+          <p class="text-[13px] font-medium" id="viewerFileName">—</p>
+          <p class="text-[11px] text-[var(--ink-soft)]" id="viewerMeta">—</p>
+        </div>
+        <span class="text-[11px] px-3 py-1 rounded-full font-medium" id="viewerStateBadge">—</span>
+      </div>
+
+      <button id="revealBtn" class="w-full pill-dark rounded-2xl py-3.5 text-[14px] font-medium mb-4">View file (counts as one view)</button>
+
+      <div id="viewerFrame" class="relative rounded-3xl overflow-hidden card hidden" style="min-height:300px;">
+        <img id="viewerImg" class="w-full h-auto hidden" />
+        <iframe id="viewerFile" class="w-full hidden" style="height:400px; border:0;"></iframe>
+        <div id="watermarkLayer" class="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-3 p-3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DEVELOPER ============ -->
+  <section id="tab-developer" class="tab-content px-5 pt-6">
+    <div class="card rounded-3xl p-6 mb-4 text-center">
+      <div class="w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center text-white text-2xl font-semibold" style="background:var(--accent);">DS</div>
+      <h1 class="text-lg font-semibold">Deepansh Singh Rajput</h1>
+      <p class="text-[13px] text-[var(--ink-soft)] mt-0.5">Application Developer · Tech Innovator</p>
+      <span class="inline-block mt-2 text-[11px] px-3 py-1 rounded-full" style="background:var(--accent-soft); color:var(--accent);">📍 Based in Uttar Pradesh, India</span>
+    </div>
+    <div class="card rounded-3xl p-5 mb-4">
+      <h2 class="text-[13px] font-semibold uppercase tracking-widest text-[var(--ink-soft)] mb-2">About</h2>
+      <p class="text-[14px] leading-relaxed">Deepansh is an ambitious college student from UP, India, with a deep-rooted passion for cutting-edge technology, systems architecture, and mobile application development. Driven by curiosity and a problem-solving mindset, he focuses on building high-utility, secure digital solutions that address real-world privacy challenges.</p>
+    </div>
+    <div class="card rounded-3xl p-5">
+      <h2 class="text-[13px] font-semibold uppercase tracking-widest text-[var(--ink-soft)] mb-3">Stack</h2>
+      <div class="flex flex-wrap gap-2">
+        <span class="text-[12px] px-3 py-1.5 rounded-full pill-dark">#React</span>
+        <span class="text-[12px] px-3 py-1.5 rounded-full pill-dark">#Next.js</span>
+        <span class="text-[12px] px-3 py-1.5 rounded-full pill-dark">#Android</span>
+        <span class="text-[12px] px-3 py-1.5 rounded-full pill-dark">#TailwindCSS</span>
+        <span class="text-[12px] px-3 py-1.5 rounded-full pill-dark">#TypeScript</span>
+      </div>
+    </div>
+  </section>
+
+  <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-md z-40">
+    <div class="pill-dark rounded-[28px] flex items-center justify-around py-2.5 px-2 shadow-xl">
+      <button data-tab="dashboard" class="tab-btn flex flex-col items-center gap-1 px-4 py-2 rounded-2xl">
+        <i data-lucide="layout-grid" class="w-5 h-5"></i><span class="text-[10px] font-medium">Dashboard</span>
+      </button>
+      <button data-tab="viewer" class="tab-btn flex flex-col items-center gap-1 px-4 py-2 rounded-2xl">
+        <i data-lucide="eye" class="w-5 h-5"></i><span class="text-[10px] font-medium">Viewer</span>
+      </button>
+      <button data-tab="developer" class="tab-btn flex flex-col items-center gap-1 px-4 py-2 rounded-2xl">
+        <i data-lucide="user" class="w-5 h-5"></i><span class="text-[10px] font-medium">Developer</span>
+      </button>
+    </div>
+  </nav>
+</div>
+
+<script>
+lucide.createIcons();
+
+/* ---------- Tab switching ---------- */
+const tabs = document.querySelectorAll('.tab-btn');
+function setActiveTab(name){
+  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  tabs.forEach(b => b.classList.toggle('bg-white/15', b.dataset.tab === name));
+}
+tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
+
+/* ---------- Config diagnostics ---------- */
+async function loadConfigBanner(){
+  const banner = document.getElementById('configBanner');
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if(!cfg.senderKeyConfigured){
+      banner.textContent = "Server setup incomplete: SENDER_API_KEY is not set in your host's environment variables. Set it, then reload.";
+      banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  } catch(e){
+    banner.textContent = 'Could not reach the server to check configuration.';
+    banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
+    banner.classList.remove('hidden');
+  }
+}
+loadConfigBanner();
+
+/* ---------- Sender key: persisted in this browser so it survives reloads ---------- */
+let senderKey = localStorage.getItem('deepsecure_sender_key') || '';
+document.getElementById('senderKeyInput').value = senderKey;
+if(senderKey){ refreshLinks(); refreshAudit(); }
+
+document.getElementById('saveKeyBtn').addEventListener('click', () => {
+  senderKey = document.getElementById('senderKeyInput').value.trim();
+  localStorage.setItem('deepsecure_sender_key', senderKey);
+  refreshLinks();
+  refreshAudit();
+});
+function authHeaders(){ return { 'x-sender-key': senderKey }; }
+
+/* ---------- Upload / create link ---------- */
+const fileInput = document.getElementById('fileInput');
+document.getElementById('dropZone').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  document.getElementById('fileLabel').textContent = fileInput.files[0]?.name || 'Tap to choose a file';
+});
+
+document.getElementById('createLinkBtn').addEventListener('click', async () => {
+  const status = document.getElementById('uploadStatus');
+  if(!senderKey){ status.textContent = 'Paste your sender key above first.'; return; }
+  if(!fileInput.files[0]){ status.textContent = 'Choose a file first.'; return; }
+
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  form.append('expiryMinutes', document.getElementById('expirySelect').value);
+  form.append('maxViews', document.getElementById('viewsSelect').value);
+  form.append('requiresApproval', document.getElementById('requireApproval').checked);
+
+  status.textContent = 'Uploading...';
+  try {
+    const res = await fetch('/api/links', { method: 'POST', headers: authHeaders(), body: form });
+    if(!res.ok){ const e = await res.json(); throw new Error(e.error || 'Upload failed'); }
+    const data = await res.json();
+    status.textContent = '';
+    document.getElementById('linkModalMeta').textContent =
+      `Expires ${new Date(data.expiresAt).toLocaleString()} · ${data.maxViews || 'unlimited'} views`;
+    document.getElementById('linkModalUrl').value = data.url;
+    const modal = document.getElementById('linkModal');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    refreshLinks();
+  } catch(err){
+    status.textContent = err.message;
+  }
+});
+
+document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+  const input = document.getElementById('linkModalUrl');
+  input.select();
+  try { await navigator.clipboard.writeText(input.value); } catch(e){ document.execCommand('copy'); }
+});
+document.getElementById('closeLinkModal').addEventListener('click', () => {
+  const modal = document.getElementById('linkModal');
+  modal.classList.add('hidden'); modal.classList.remove('flex');
+});
+
+/* ---------- Links list ---------- */
+async function refreshLinks(){
+  if(!senderKey) return;
+  const grid = document.getElementById('linksGrid');
+  try {
+    const res = await fetch('/api/links', { headers: authHeaders() });
+    if(!res.ok) throw new Error();
+    const rows = await res.json();
+    grid.innerHTML = rows.map(l => `
+      <div class="card rounded-3xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:var(--canvas);">
+            <i data-lucide="file-lock-2" class="w-4 h-4" style="color:var(--ink-soft)"></i>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[13px] font-medium truncate">${l.original_name}</p>
+            <p class="text-[11px] text-[var(--ink-soft)]">${new Date(l.created_at).toLocaleString()} · ${l.view_count}/${l.max_views || '∞'} views</p>
+          </div>
+        </div>
+        <span class="text-[11px] px-3 py-1 rounded-full font-medium whitespace-nowrap capitalize"
+          style="${statusStyle(l.status)}">${l.status}</span>
+      </div>
+    `).join('') || `<p class="text-[13px] text-[var(--ink-soft)]">No links yet.</p>`;
+    lucide.createIcons();
+  } catch(e){
+    grid.innerHTML = `<p class="text-[13px] text-[var(--red)]">Couldn't load links — check your sender key.</p>`;
+  }
+}
+function statusStyle(s){
+  return { active: 'background:var(--accent-soft); color:var(--accent);',
+    expired: 'background:#EFE9E2; color:var(--ink-soft);',
+    pending: 'background:#F3E7D6; color:var(--amber);',
+    revoked: 'background:#F6E3E0; color:var(--red);' }[s] || '';
+}
+document.getElementById('refreshLinksBtn').addEventListener('click', refreshLinks);
+
+/* ---------- Audit log ---------- */
+async function refreshAudit(){
+  if(!senderKey) return;
+  const log = document.getElementById('auditLog');
+  try {
+    const res = await fetch('/api/audit', { headers: authHeaders() });
+    const rows = await res.json();
+    log.innerHTML = rows.slice(0,20).map(a => `
+      <div class="flex items-center justify-between px-3 py-2.5">
+        <div>
+          <p class="text-[12.5px]"><span class="font-medium">${a.actor}</span> · ${a.action}</p>
+          <p class="text-[11px] text-[var(--ink-soft)] font-mono">${a.token.slice(0,10)}…</p>
+        </div>
+        <span class="text-[11px] text-[var(--ink-soft)] whitespace-nowrap">${new Date(a.created_at).toLocaleTimeString()}</span>
+      </div>
+    `).join('');
+  } catch(e){}
+}
+
+/* ---------- Viewer ---------- */
+function currentToken(){
+  const match = location.pathname.match(/^\/view\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+async function loadViewerMeta(){
+  const token = currentToken();
+  const banner = document.getElementById('viewerBanner');
+  const card = document.getElementById('viewerCard');
+  if(!token){ banner.textContent = 'No link token in this URL.'; banner.classList.remove('hidden'); return; }
+  setActiveTab('viewer');
+  try {
+    const res = await fetch(`/api/view/${token}/meta`);
+    if(!res.ok){
+      const e = await res.json();
+      banner.textContent = e.error || 'This link is not valid.';
+      banner.style.background = '#F6E3E0'; banner.style.color = 'var(--red)';
+      banner.classList.remove('hidden');
+      return;
+    }
+    const meta = await res.json();
+    card.classList.remove('hidden');
+    document.getElementById('viewerFileName').textContent = meta.name;
+    document.getElementById('viewerMeta').textContent =
+      `${meta.viewCount}/${meta.maxViews || '∞'} views used · expires ${new Date(meta.expiresAt).toLocaleString()}`;
+    const badge = document.getElementById('viewerStateBadge');
+    badge.textContent = meta.status;
+    badge.setAttribute('style', statusStyle(meta.status));
+
+    const revealBtn = document.getElementById('revealBtn');
+    if(meta.status !== 'active'){
+      revealBtn.disabled = true; revealBtn.textContent = `Link ${meta.status}`; revealBtn.classList.add('opacity-50');
+    }
+    if(meta.requiresApproval && meta.status === 'pending'){
+      revealBtn.disabled = true; revealBtn.textContent = 'Waiting for sender approval'; revealBtn.classList.add('opacity-50');
+    }
+  } catch(e){
+    banner.textContent = 'Could not reach the server.';
+    banner.classList.remove('hidden');
+  }
+}
+
+document.getElementById('revealBtn').addEventListener('click', async () => {
+  const token = currentToken();
+  if(!token) return;
+  const meta = await (await fetch(`/api/view/${token}/meta`)).json();
+
+  const frame = document.getElementById('viewerFrame');
+  const img = document.getElementById('viewerImg');
+  const iframe = document.getElementById('viewerFile');
+  frame.classList.remove('hidden');
+
+  const fileUrl = `/api/view/${token}/file`;
+  if(meta.mimeType && meta.mimeType.startsWith('image/')){
+    img.src = fileUrl; img.classList.remove('hidden'); iframe.classList.add('hidden');
+  } else {
+    iframe.src = fileUrl; iframe.classList.remove('hidden'); img.classList.add('hidden');
+  }
+  paintWatermark();
+  loadViewerMeta();
+});
+
+function paintWatermark(){
+  const layer = document.getElementById('watermarkLayer');
+  const stamp = new Date().toLocaleString();
+  layer.innerHTML = '';
+  for(let i=0;i<6;i++){
+    const div = document.createElement('div');
+    div.className = 'flex items-center justify-center text-[10px] font-mono watermark-tile';
+    div.style.transform = 'rotate(-18deg)';
+    div.textContent = stamp;
+    layer.appendChild(div);
+  }
+}
+
+if(currentToken()){ loadViewerMeta(); } else { setActiveTab('dashboard'); }
+
+/* -------
